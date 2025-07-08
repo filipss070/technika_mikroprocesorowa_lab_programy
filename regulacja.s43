@@ -1,0 +1,79 @@
+#include "msp430.h"			; dolaczenie biblioteki do MSP430
+;------------------------------------------------------------------------------
+; Rotacja "1" na porcie P2, w lewo
+;------------------------------------------------------------------------------
+	ORG	01100h			; poczatkowy adres pamieci programu
+INIT:	mov.w	#0A00h,SP		; inicjalizacja wsk. stosu
+	mov.w	#WDTPW+WDTHOLD,&WDTCTL	; wylaczenie watchdoga
+
+	bis.b	#0FFh,&P2DIR		; P2.0-P2.7 jako wyjscie
+        mov.b	#03h,P1IE
+        mov.b	#03h,P1IES
+        bis.b	#010h,&P4DIR
+        bis.w   #GIE, SR
+        mov.w   #TASSEL1|ID1|ID0|MC0|MC1|TAIE, TACTL
+        mov.w   #032h, TACCR0
+        mov.b   #00h, R12
+        bis.b   #08h, P6SEL
+        bis.w   #MSC|REF2_5V|REFON, ADC12CTL0
+        bis.w   #SHP|CONSEQ1, ADC12CTL1
+        bis.b   #SREF0|INCH1|INCH0, ADC12MCTL0
+        bis.w   #ADC12ON|ENC|ADC12SC, ADC12CTL0
+//main:	push	SR			; SR -> stos
+	//mov.b	#0FFh,P2OUT		; inicjalizacja P1OUT
+loop:   jmp loop//git
+ZEGAR:
+        bic.w   #01h, TACTL
+        cmp.w   ADC12MEM0, R12
+        jnc      maleje
+        jc     rosnie
+        RETI
+maleje:
+        bic.b   #010h, P4OUT
+        RETI
+rosnie:
+        bis.b   #010h, P4OUT
+        RETI
+PORT_P: 
+        bic.b   #03h, P1IFG
+        xor.b   #02h, P1IES
+        bit.b   #01h, P1IN
+        jz      resetdziewiec
+        bit.b   #02h, P1IES
+        jz      narastajace
+        jnz     opadajace
+        RETI
+narastajace:
+        bit.b   #04h, P1IN
+        jz      zwiekszenie
+        jnz     zmniejszenie
+opadajace:
+        bit.b   #04h, P1IN
+        jnz     zwiekszenie
+        jz      zmniejszenie
+zwiekszenie:
+        cmp.w   #01004h, R12
+        jz      resetzero
+        add   #064h, R12
+        RETI
+zmniejszenie:
+        cmp.w   #00h, R12
+        jz      resetdziewiec
+        sub   #064h, R12
+        RETI
+resetzero:
+       mov.w    #01004h, R12
+       RETI
+resetdziewiec:
+       mov.b    #00h, R12
+       RETI
+;------------------------------------------------------------------------------
+;       Wektory przerwan
+;------------------------------------------------------------------------------
+	ORG	0FFFEh			; wektor resetu
+	DW	INIT			; adres poczatkowy pamieci programu
+        ORG     0FFE8h
+        DW      PORT_P
+        ORG     0FFEAh
+        DW      ZEGAR
+	END
